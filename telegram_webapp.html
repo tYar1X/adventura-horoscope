@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Адвентура • Тревел-гороскоп</title>
+
+  <!-- Официальный SDK Telegram WebApp -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Шрифт Inter для чёткой travel-tech типографики -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN с кастомной конфигурацией анимаций и палитры -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          },
+          keyframes: {
+            twinkle: {
+              '0%, 100%': { opacity: '0.15', transform: 'scale(0.85)' },
+              '50%': { opacity: '0.75', transform: 'scale(1.15)' },
+            },
+            fadeSlideIn: {
+              '0%': { opacity: '0', transform: 'translateY(14px) scale(0.985)' },
+              '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+            },
+            fadeSlideOut: {
+              '0%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+              '100%': { opacity: '0', transform: 'translateY(-10px) scale(0.985)' },
+            },
+            pulseGlow: {
+              '0%, 100%': { opacity: '0.45' },
+              '50%': { opacity: '0.75' },
+            },
+          },
+          animation: {
+            twinkle: 'twinkle var(--twinkle-duration, 4s) ease-in-out var(--twinkle-delay, 0s) infinite',
+            'screen-in': 'fadeSlideIn 320ms cubic-bezier(0.22, 1, 0.36, 1) forwards',
+            'screen-out': 'fadeSlideOut 150ms ease-in forwards',
+            'pulse-glow': 'pulseGlow 6s ease-in-out infinite',
+          },
+        },
+      },
+    };
+  </script>
+</head>
+
+<body class="min-h-screen bg-gradient-to-b from-[#0B1120] via-[#0E1629] to-[#111827] text-slate-100 font-sans antialiased selection:bg-sky-500/30 selection:text-sky-200 overflow-x-hidden">
+
+  <!-- Фоновый слой: минималистичное звёздное небо + мягкое атмосферное свечение -->
+  <div aria-hidden="true" class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    <!-- Верхнее свечение (меняет оттенок в зависимости от стихии знака) -->
+    <div id="ambient-glow-top" class="absolute -top-28 left-1/2 -translate-x-1/2 w-[380px] h-[380px] rounded-full bg-sky-500/20 blur-[100px] transition-colors duration-700 animate-pulse-glow"></div>
+    <!-- Нижнее акцентное свечение -->
+    <div id="ambient-glow-bottom" class="absolute -bottom-32 right-0 w-[280px] h-[280px] rounded-full bg-amber-500/10 blur-[100px] transition-colors duration-700"></div>
+    <!-- Контейнер для лёгких мерцающих звёзд (генерируется скриптом) -->
+    <div id="starfield" class="absolute inset-0"></div>
+  </div>
+
+  <!-- Основной mobile-first контейнер (до 480px по центру экрана) -->
+  <main class="relative z-10 w-full max-w-[480px] mx-auto min-h-screen flex flex-col px-4 pt-5 pb-8 sm:px-5">
+
+    <!-- ==================== ЭКРАН 1: ВЫБОР ЗНАКА ЗОДИАКА ==================== -->
+    <section id="screen-select" class="flex-1 flex flex-col">
+      <!-- Шапка и приветствие -->
+      <header class="text-center mb-6">
+        <!-- Компактный фирменный бейдж -->
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.05] border border-white/10 backdrop-blur-md shadow-sm mb-4">
+          <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2L14.8 9.2L22 12L14.8 14.8L12 22L9.2 14.8L2 12L9.2 9.2L12 2Z" />
+          </svg>
+          <span id="brand-badge-text" class="text-[11px] font-semibold tracking-wider uppercase text-slate-200/90">
+            Адвентура • Тревел-гороскоп
+          </span>
+        </div>
+
+        <!-- Персонализированный заголовок -->
+        <h1 id="main-heading" class="text-2xl sm:text-[26px] font-extrabold tracking-tight text-white leading-tight mb-2.5">
+          Узнай, какой ты тревел-эксперт
+        </h1>
+
+        <!-- Подзаголовок -->
+        <p class="text-[13.5px] sm:text-sm text-slate-400 leading-relaxed max-w-[360px] mx-auto">
+          Выбери свой знак зодиака, чтобы увидеть суперсилу, точку роста и совет звёзд
+        </p>
+      </header>
+
+      <!-- Сетка 3×4 со знаками зодиака (заполняется динамически из ZODIAC_SIGNS) -->
+      <div id="zodiac-grid" class="grid grid-cols-3 gap-2.5 sm:gap-3 mb-6" role="list" aria-label="Знаки зодиака">
+        <!-- Плитки генерируются в JS -->
+      </div>
+
+      <!-- Лёгкий футер экрана выбора -->
+      <footer class="mt-auto pt-2 text-center">
+        <p class="text-[11.5px] text-slate-500">
+          Нажми на свой знак — прогноз откроется мгновенно
+        </p>
+      </footer>
+    </section>
+
+    <!-- ==================== ЭКРАН 2: КАРТОЧКА РЕЗУЛЬТАТА ==================== -->
+    <section id="screen-result" class="hidden flex-1 flex-col" aria-live="polite">
+      <!-- Верхняя панель навигации (кнопка «Назад» для браузера + бейдж стихии и дат) -->
+      <div class="flex items-center justify-between gap-2 mb-4">
+        <button
+          id="btn-back-top"
+          type="button"
+          class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 border border-white/10 text-xs font-medium text-slate-200 transition-all cursor-pointer"
+          aria-label="Вернуться к выбору знака"
+        >
+          <svg class="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          <span>Назад</span>
+        </button>
+
+        <!-- Бейдж стихии + даты знака -->
+        <div class="inline-flex items-center gap-2">
+          <span id="result-element-badge" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border backdrop-blur-md">
+            <!-- Иконка и название стихии -->
+          </span>
+          <span id="result-dates" class="px-2.5 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-[11px] font-medium text-slate-400">
+            21.03–19.04
+          </span>
+        </div>
+      </div>
+
+      <!-- Главная стеклянная карточка архетипа -->
+      <article class="relative rounded-3xl bg-slate-900/65 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/40 p-5 sm:p-6 mb-4 overflow-hidden">
+        <!-- Тонкая верхняя акцентная линия по стихии -->
+        <div id="result-card-accent-line" class="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-sky-400 to-transparent opacity-80"></div>
+
+        <!-- Символ и заголовок архетипа -->
+        <div class="flex items-start gap-3.5 mb-4">
+          <div id="result-symbol-box" class="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center border shadow-inner">
+            <!-- SVG-символ знака -->
+          </div>
+          <div class="min-w-0 pt-0.5">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+              Твой тревел-архетип
+            </p>
+            <h2 id="result-title" class="text-lg sm:text-[19px] font-bold text-white leading-snug">
+              <!-- Заголовок архетипа -->
+            </h2>
+          </div>
+        </div>
+
+        <!-- Основное описание -->
+        <p id="result-description" class="text-[14px] sm:text-[14.5px] text-slate-200/95 leading-relaxed mb-5">
+          <!-- Описание -->
+        </p>
+
+        <!-- Два выделенных смысловых блока -->
+        <div class="space-y-3 mb-6">
+          <!-- Блок 1: Точка роста -->
+          <div class="rounded-2xl bg-amber-500/[0.07] border border-amber-400/20 p-3.5 sm:p-4">
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="w-6 h-6 rounded-lg bg-amber-400/15 text-amber-300 flex items-center justify-center shrink-0">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                  <polyline points="17 6 23 6 23 12" />
+                </svg>
+              </span>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-amber-300">
+                Точка роста
+              </h3>
+            </div>
+            <p id="result-growth" class="text-[13.5px] text-slate-200/90 leading-relaxed">
+              <!-- Текст точки роста -->
+            </p>
+          </div>
+
+          <!-- Блок 2: Совет звёзд -->
+          <div class="rounded-2xl bg-sky-500/[0.08] border border-sky-400/20 p-3.5 sm:p-4">
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="w-6 h-6 rounded-lg bg-sky-400/15 text-sky-300 flex items-center justify-center shrink-0">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
+                </svg>
+              </span>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-sky-300">
+                Совет звёзд
+              </h3>
+            </div>
+            <p id="result-advice" class="text-[13.5px] text-slate-200/90 leading-relaxed">
+              <!-- Текст совета звёзд -->
+            </p>
+          </div>
+        </div>
+
+        <!-- Основной CTA-блок -->
+        <div class="pt-1">
+          <p id="result-cta-caption" class="text-center text-xs font-medium text-slate-300 mb-2.5">
+            <!-- Подпись над кнопкой -->
+          </p>
+          <button
+            id="btn-cta"
+            type="button"
+            class="group w-full py-3.5 px-5 rounded-2xl font-semibold text-[15px] text-white bg-gradient-to-r from-sky-500 via-blue-600 to-sky-500 bg-[length:200%_auto] hover:bg-right active:scale-[0.98] shadow-lg shadow-sky-500/25 border border-sky-300/30 flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer"
+          >
+            <span id="result-cta-text">Подключиться к Адвентуре</span>
+            <svg class="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </button>
+        </div>
+      </article>
+
+      <!-- Две компактные второстепенные кнопки в ряд -->
+      <div class="grid grid-cols-2 gap-2.5 mb-2">
+        <button
+          id="btn-choose-another"
+          type="button"
+          class="py-3 px-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.09] active:scale-[0.97] border border-white/10 text-[12.5px] sm:text-[13px] font-medium text-slate-200 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+        >
+          <svg class="w-4 h-4 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          </svg>
+          <span>Выбрать другой знак</span>
+        </button>
+
+        <button
+          id="btn-copy-forecast"
+          type="button"
+          class="py-3 px-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.09] active:scale-[0.97] border border-white/10 text-[12.5px] sm:text-[13px] font-medium text-slate-200 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+        >
+          <svg class="w-4 h-4 text-sky-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+          <span>Скопировать прогноз</span>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast-уведомление при копировании прогноза (без alert) -->
+  <div
+    id="toast"
+    role="status"
+    aria-live="polite"
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-3 transition-all duration-300"
+  >
+    <div class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-slate-900/95 border border-sky-400/30 text-slate-100 text-xs font-semibold shadow-xl shadow-black/50 backdrop-blur-md">
+      <svg class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+      <span id="toast-message">Скопировано!</span>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ============================================================================
+     * 1. КОНФИГУРАЦИЯ ПРИЛОЖЕНИЯ (легко редактируется маркетологом)
+     * ============================================================================
+     */
+    const CONFIG = {
+      // Основная ссылка для CTA-кнопок (можно подставить любую UTM-ссылку)
+      CTA_URL: 'https://vk.cc/d3Qd49',
+
+      // Текст бейджа в верхней части экрана
+      BRAND_BADGE: 'Адвентура • Тревел-гороскоп',
+
+      // Базовый заголовок (если Telegram не передал имя пользователя)
+      DEFAULT_HEADING: 'Узнай, какой ты тревел-эксперт',
+
+      // Цвета шапки и фона для Telegram WebApp
+      TG_HEADER_COLOR: '#0B1120',
+      TG_BG_COLOR: '#0B1120',
+
+      // Суммарная длительность перехода между экранами (мс)
+      TRANSITION_OUT_MS: 150,
+      TRANSITION_IN_MS: 300, // 150 + 300 = 450 мс
+    };
+
+    /**
+     * Визуальные токены для 4 стихий (чистые travel-tech акценты: синий/голубой + золото/оранжевый)
+     */
+    const ELEMENT_STYLES = {
+      fire: {
+        label: 'Огонь',
+        badgeClass: 'bg-orange-500/15 text-orange-300 border-orange-400/30',
+        symbolBoxClass: 'bg-gradient-to-br from-orange-500/20 to-amber-500/10 border-orange-400/30 text-amber-300',
+        tileHoverClass: 'hover:border-orange-400/40 hover:bg-orange-500/[0.07]',
+        tileIconClass: 'text-amber-300',
+        dotClass: 'bg-orange-400',
+        accentLineClass: 'bg-gradient-to-r from-transparent via-amber-400 to-transparent',
+        topGlowClass: 'bg-orange-500/20',
+        bottomGlowClass: 'bg-sky-500/15',
+        iconSvg: '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.5 3.5-2 5.5-2 8.5 0 1.4 1 2.5 2 2.5 1.7 0 2.5-1.5 2.5-3.5 2.2 1.6 3.5 4 3.5 6.5a6 6 0 1 1-12 0c0-3.8 2.8-6.8 6-14z"/></svg>',
+      },
+      earth: {
+        label: 'Земля',
+        badgeClass: 'bg-amber-500/15 text-amber-200 border-amber-400/30',
+        symbolBoxClass: 'bg-gradient-to-br from-amber-500/20 to-yellow-500/10 border-amber-400/30 text-amber-200',
+        tileHoverClass: 'hover:border-amber-400/40 hover:bg-amber-500/[0.07]',
+        tileIconClass: 'text-amber-200',
+        dotClass: 'bg-amber-400',
+        accentLineClass: 'bg-gradient-to-r from-transparent via-amber-300 to-transparent',
+        topGlowClass: 'bg-amber-500/15',
+        bottomGlowClass: 'bg-sky-500/15',
+        iconSvg: '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 3 21 19 3 19"/></svg>',
+      },
+      air: {
+        label: 'Воздух',
+        badgeClass: 'bg-sky-500/15 text-sky-300 border-sky-400/30',
+        symbolBoxClass: 'bg-gradient-to-br from-sky-500/20 to-cyan-500/10 border-sky-400/30 text-sky-300',
+        tileHoverClass: 'hover:border-sky-400/40 hover:bg-sky-500/[0.07]',
+        tileIconClass: 'text-sky-300',
+        dotClass: 'bg-sky-400',
+        accentLineClass: 'bg-gradient-to-r from-transparent via-sky-400 to-transparent',
+        topGlowClass: 'bg-sky-500/20',
+        bottomGlowClass: 'bg-amber-400/10',
+        iconSvg: '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h13a3 3 0 1 0-3-3"/><path d="M3 12h16a2.5 2.5 0 1 1-2.5 2.5"/><path d="M3 16h9"/></svg>',
+      },
+      water: {
+        label: 'Вода',
+        badgeClass: 'bg-blue-500/15 text-blue-300 border-blue-400/30',
+        symbolBoxClass: 'bg-gradient-to-br from-blue-500/20 to-indigo-500/10 border-blue-400/30 text-blue-300',
+        tileHoverClass: 'hover:border-blue-400/40 hover:bg-blue-500/[0.07]',
+        tileIconClass: 'text-blue-300',
+        dotClass: 'bg-blue-400',
+        accentLineClass: 'bg-gradient-to-r from-transparent via-blue-400 to-transparent',
+        topGlowClass: 'bg-blue-500/20',
+        bottomGlowClass: 'bg-sky-400/15',
+        iconSvg: '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5C12 2.5 5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5z"/></svg>',
+      },
+    };
+
+    /**
+     * ============================================================================
+     * 2. ДАННЫЕ ВСЕХ 12 ЗНАКОВ ЗОДИАКА (точные согласованные тексты)
+     * ============================================================================
+     */
+    const ZODIAC_SIGNS = [
+      {
+        id: 'aries',
+        name: 'Овен',
+        emoji: '♈️',
+        dates: '21.03–19.04',
+        element: 'fire',
+        title: 'Овен: Главный по кнопке «Забронировать»',
+        description: 'Если бы скорость отправки подборок измерялась в километрах в час, тебе бы уже выписали штраф за превышение. Твоя суперсила — принимать решения за секунду и заражать туриста желанием лететь прямо сейчас.',
+        growth: 'Тягомотина с договорами и ручной подсчёт комиссии вызывают у тебя физическую боль.',
+        advice: 'Делегируй скучную часть системе. В Адвентуре всё автоматизировано и прозрачно: пара кликов — и заявка в работе, а кураторы помогут во всём разобраться.',
+        ctaCaption: 'Тестируй платформу на своей скорости',
+        ctaButton: 'Подключить тест-драйв',
+        svgPath: '<path d="M12 20V9"/><path d="M12 10c0-3.5-2.5-6-5.5-6S2 6 2 8.5"/><path d="M12 10c0-3.5 2.5-6 5.5-6S22 6 22 8.5"/>',
+      },
+      {
+        id: 'taurus',
+        name: 'Телец',
+        emoji: '♉️',
+        dates: '20.04–20.05',
+        element: 'earth',
+        title: 'Телец: Гедонист пяти звёзд',
+        description: 'Ты безошибочно отличаешь «просто хороший отель» от места, откуда турист привезёт восторженные отзывы. Твоя суперсила — умение продавать настоящий комфорт и высокий чек.',
+        growth: 'Обидно тратить часы на поиск идеального варианта, получая за это стандартную комиссию.',
+        advice: 'Монетизируй свой безупречный вкус по максимуму. В Адвентуре прозрачная система выплат позволяет зарабатывать с каждой брони ощутимо больше.',
+        ctaCaption: 'Увеличь доход с привычных бронирований',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<circle cx="12" cy="14" r="5.5"/><path d="M5.5 4.5C6.5 7 9 8.5 12 8.5s5.5-1.5 6.5-4"/>',
+      },
+      {
+        id: 'gemini',
+        name: 'Близнецы',
+        emoji: '♊️',
+        dates: '21.05–20.06',
+        element: 'air',
+        title: 'Близнецы: Повелитель ста вкладок',
+        description: 'Ты легко находишь общий язык с любым туристом, умеешь вести пять переписок параллельно и закрывать возражения ещё до того, как они появятся.',
+        growth: 'Расфокус из-за десятка открытых браузеров, таблиц и разных личных кабинетов.',
+        advice: 'Собери всю работу в едином пространстве. На платформе Адвентура удобный поиск туров, готовые подборки и вся аналитика по заявкам всегда под рукой.',
+        ctaCaption: 'Оптимизируй рабочее пространство прямо сейчас',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<path d="M5 4.5c4.5 1.8 9.5 1.8 14 0"/><path d="M5 19.5c4.5-1.8 9.5-1.8 14 0"/><path d="M9 6v12"/><path d="M15 6v12"/>',
+      },
+      {
+        id: 'cancer',
+        name: 'Рак',
+        emoji: '♋️',
+        dates: '21.06–22.07',
+        element: 'water',
+        title: 'Рак: Семейный психолог по отпускам',
+        description: 'Ты чувствуешь запрос клиента на уровне интуиции: знаешь, где идеальный заход в море для детей, а где — тихий номер с видом на сад. Клиенты возвращаются к тебе годами.',
+        growth: 'Ты так сильно переживаешь за каждого туриста, что иногда забываешь про собственный ресурс.',
+        advice: 'Переложи техническую и бумажную часть на надёжную систему. В Адвентуре кураторы страхуют каждую заявку, чтобы ты спокойно занимался любимым делом.',
+        ctaCaption: 'Работай с поддержкой, на которую можно опереться',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<circle cx="7.5" cy="9.5" r="2.75"/><path d="M6 6.8C9.5 4.5 15.5 5 19 8.5"/><circle cx="16.5" cy="14.5" r="2.75"/><path d="M18 17.2C14.5 19.5 8.5 19 5 15.5"/>',
+      },
+      {
+        id: 'leo',
+        name: 'Лев',
+        emoji: '♌️',
+        dates: '23.07–22.08',
+        element: 'fire',
+        title: 'Лев: Продюсер идеальных сторис',
+        description: 'К тебе идут за эмоциями и вау-эффектом. Ты умеешь красиво упаковать любое направление так, что туристу хочется собрать чемодан прямо во время вашего диалога.',
+        growth: 'Отсутствие масштаба и потолок в доходе при работе по старым схемам.',
+        advice: 'Выбирай площадку, которая соответствует твоим амбициям. В Адвентуре ты получаешь доступ к топовым предложениям рынка и комиссию до 85%!',
+        ctaCaption: 'Выходи на новый уровень дохода в туризме',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<circle cx="7" cy="14.5" r="3"/><path d="M9.5 12.8C10 7.5 12.5 4.5 15.5 4.5c2.2 0 3.5 1.5 3.5 3.5 0 2.5-2.5 5-2.5 8.5 0 1.7 1.2 2.5 2.5 2.5 1 0 1.8-.5 2.2-1.2"/>',
+      },
+      {
+        id: 'virgo',
+        name: 'Дева',
+        emoji: '♍️',
+        dates: '23.08–22.09',
+        element: 'earth',
+        title: 'Дева: Гроза мелкого шрифта',
+        description: 'От тебя не скроется ни одна деталь: тайминги стыковок, условия аннуляции, визовые нюансы и каждая цифра в договоре под полным контролем. С тобой турист застрахован от любых сюрпризов.',
+        growth: 'Хаос в чужих системах бронирования и непрозрачные расчёты комиссий.',
+        advice: 'Тебе нужна платформа с такой же математической точностью. В Адвентуре понятный документооборот, чёткие тарифные ступени (60% / 75% / 85%) и полный контроль над заявками.',
+        ctaCaption: 'Протестируй систему, чтобы убедиться окончательно',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<path d="M4.5 6v11"/><path d="M4.5 9.5c0-2 1.4-3.5 3-3.5s3 1.5 3 3.5V17"/><path d="M10.5 9.5c0-2 1.4-3.5 3-3.5s3 1.5 3 3.5v5.5c0 2.2 1.2 3.8 3 4.5"/><path d="M16.5 11.5c1.5-1.5 3.5-1 3.5 1 0 2.8-2.5 5-5.5 6.5"/>',
+      },
+      {
+        id: 'libra',
+        name: 'Весы',
+        emoji: '♎️',
+        dates: '23.09–22.10',
+        element: 'air',
+        title: 'Весы: Укротитель «хочу туда, не знаю куда»',
+        description: 'Когда один турист хочет «всё включено», а второй — авторский маршрут, именно ты находишь идеальный баланс. Твоя суперсила — превращать бесконечные сомнения клиента в уверенную бронь.',
+        growth: 'Долгие поиски компромиссных вариантов по разным базам.',
+        advice: 'Используй единый агрегатор с умными фильтрами. В Адвентуре сравнение предложений занимает пару минут, оставляя тебе время на красивый сервис и общение.',
+        ctaCaption: 'Сравнивай и бронируй туры в одном окне',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<path d="M3.5 18.5h17"/><path d="M3.5 14h4.5a4.5 4.5 0 1 1 8 0h4.5"/>',
+      },
+      {
+        id: 'scorpio',
+        name: 'Скорпион',
+        emoji: '♏️',
+        dates: '23.10–21.11',
+        element: 'water',
+        title: 'Скорпион: Детектив тайных скидок',
+        description: 'Ты видишь рынок насквозь: безошибочно определяешь, когда цена реально выгодная, а где скрыт маркетинговый шум. Клиенты доверяют тебе как закрытому инсайдеру.',
+        growth: 'Работа на площадках, которые забирают львиную долю твоей маржи.',
+        advice: 'Забирай максимум с каждой сделки. В Адвентуре ты работаешь на прозрачных условиях и можешь выйти на 85% комиссии без лишних посредников.',
+        ctaCaption: 'Забирай свою максимальную комиссию',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<path d="M4 6v10"/><path d="M4 9.5c0-2 1.4-3.5 3-3.5s3 1.5 3 3.5V16"/><path d="M10 9.5c0-2 1.4-3.5 3-3.5s3 1.5 3 3.5v6c0 1.8 1.2 3 2.8 3 1.2 0 2.2-.8 2.7-1.8"/><path d="M19.5 15l2 1.7-1.5 2.3"/>',
+      },
+      {
+        id: 'sagittarius',
+        name: 'Стрелец',
+        emoji: '♐️',
+        dates: '22.11–21.12',
+        element: 'fire',
+        title: 'Стрелец: Повелитель глобуса и сложных стыковок',
+        description: 'Если бы за знание географии давали бонусные мили, ты бы уже летал бизнес-классом до конца жизни. Твоя суперсила — находить рейсы с тремя пересадками на край света и заражать туристов жаждой приключений.',
+        growth: 'Привязка к одному месту и ручная сборка сложных маршрутов отнимают время у новых открытий.',
+        advice: 'Работай с платформой, которая не ограничивает твою свободу. В Адвентуре удобный поиск по всем направлениям, прозрачная комиссия до 85% и полная автономность из любой точки мира.',
+        ctaCaption: 'Открывай новые горизонты и зарабатывай больше',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<path d="M5 19L19 5"/><path d="M11 5h8v8"/><path d="M7.5 11.5l5 5"/>',
+      },
+      {
+        id: 'capricorn',
+        name: 'Козерог',
+        emoji: '♑️',
+        dates: '22.12–19.01',
+        element: 'earth',
+        title: 'Козерог: Гроссмейстер комиссии',
+        description: 'Для тебя туризм — это не просто красивые картинки, а понятные цифры, воронка продаж и стабильный рост дохода. Ты ценишь надёжность, долгосрочные партнёрства и прозрачную экономику.',
+        growth: 'Рутина, которая съедает время — договоры с туроператорами, бухгалтерия и юридические вопросы тормозят масштабирование.',
+        advice: 'Делегируй операционку платформе и расти в процентах от оборота. В Адвентуре твоё вознаграждение растёт вместе с продажами: Старт — 60% при обороте до 200 000 ₽ в месяц, Базовый — 75% при обороте от 200 000 ₽, Премиум — 85% при обороте от 1 000 000 ₽.',
+        ctaCaption: 'Увеличь свой доход вместе с Адвентурой',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<path d="M4.5 6.5l3 10 3.5-8.5c1.5-2 4-1.5 4 1.5v5.5"/><circle cx="17" cy="16" r="2.75"/><path d="M15 19.5c2 1 4.5.3 5-1.5"/>',
+      },
+      {
+        id: 'aquarius',
+        name: 'Водолей',
+        emoji: '♒️',
+        dates: '20.01–18.02',
+        element: 'air',
+        title: 'Водолей: Тревел-хакер будущего',
+        description: 'Ты первым тестируешь новые сервисы, нейросети и нестандартные форматы отдыха. Пока другие работают по шаблонам, ты задаёшь тренды в индустрии.',
+        growth: 'Неповоротливые системы бронирования из прошлого десятилетия.',
+        advice: 'Делегируй платформе всю техническую рутину — автоматизацию заявок, расчёты, договоры и юрсопровождение, — оставив себе только живое общение с туристами. В Адвентуре всё устроено так, чтобы ты работал без лишней нагрузки и стабильно рос в доходе.',
+        ctaCaption: 'Попробуй современный подход к бронированию',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<path d="M3.5 9.5l3-3 3.5 3 3.5-3 3.5 3 3.5-3"/><path d="M3.5 16l3-3 3.5 3 3.5-3 3.5 3 3.5-3"/>',
+      },
+      {
+        id: 'pisces',
+        name: 'Рыбы',
+        emoji: '♓️',
+        dates: '19.02–20.03',
+        element: 'water',
+        title: 'Рыбы: Телепат в мире отелей',
+        description: 'Ты считываешь настроение туриста с полуслова и угадываешь идеальный отель ещё до того, как клиент сам сформулировал запрос. Твоя эмпатия — твой главный магнит.',
+        growth: 'Эмоциональное выгорание, когда приходится совмещать творчество с рутиной и документами.',
+        advice: 'Оставь себе общение и вдохновение, а техническую часть доверь платформе. В Адвентуре есть всё для спокойной и прибыльной работы в комфортном ритме.',
+        ctaCaption: 'Начни зарабатывать в комфортном ритме',
+        ctaButton: 'Подключиться к Адвентуре',
+        svgPath: '<path d="M6.5 4.5c3.5 4.2 3.5 10.8 0 15"/><path d="M17.5 4.5c-3.5 4.2-3.5 10.8 0 15"/><path d="M5 12h14"/>',
+      },
+    ];
+
+    /**
+     * ============================================================================
+     * 3. СОСТОЯНИЕ И ИНТЕГРАЦИЯ С TELEGRAM WEBAPP
+     * ============================================================================
+     */
+    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+    const state = {
+      currentSign: null,
+      isTransitioning: false,
+      toastTimer: null,
+    };
+
+    // Кэширование DOM-элементов
+    const els = {
+      starfield: document.getElementById('starfield'),
+      ambientGlowTop: document.getElementById('ambient-glow-top'),
+      ambientGlowBottom: document.getElementById('ambient-glow-bottom'),
+      brandBadgeText: document.getElementById('brand-badge-text'),
+      mainHeading: document.getElementById('main-heading'),
+      screenSelect: document.getElementById('screen-select'),
+      screenResult: document.getElementById('screen-result'),
+      zodiacGrid: document.getElementById('zodiac-grid'),
+      btnBackTop: document.getElementById('btn-back-top'),
+      btnChooseAnother: document.getElementById('btn-choose-another'),
+      btnCopyForecast: document.getElementById('btn-copy-forecast'),
+      btnCta: document.getElementById('btn-cta'),
+      resultElementBadge: document.getElementById('result-element-badge'),
+      resultDates: document.getElementById('result-dates'),
+      resultCardAccentLine: document.getElementById('result-card-accent-line'),
+      resultSymbolBox: document.getElementById('result-symbol-box'),
+      resultTitle: document.getElementById('result-title'),
+      resultDescription: document.getElementById('result-description'),
+      resultGrowth: document.getElementById('result-growth'),
+      resultAdvice: document.getElementById('result-advice'),
+      resultCtaCaption: document.getElementById('result-cta-caption'),
+      resultCtaText: document.getElementById('result-cta-text'),
+      toast: document.getElementById('toast'),
+      toastMessage: document.getElementById('toast-message'),
+    };
+
+    /**
+     * Безопасный вызов тактильного отклика Telegram
+     * @param {'light' | 'medium' | 'heavy'} style
+     */
+    function triggerHapticImpact(style = 'light') {
+      try {
+        if (tg && tg.HapticFeedback && typeof tg.HapticFeedback.impactOccurred === 'function') {
+          tg.HapticFeedback.impactOccurred(style);
+        }
+      } catch (err) {
+        // Игнорируем в неподдерживаемых клиентах
+      }
+    }
+
+    /**
+     * Безопасный вызов тактильного уведомления Telegram
+     * @param {'success' | 'warning' | 'error'} type
+     */
+    function triggerHapticNotification(type = 'success') {
+      try {
+        if (tg && tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === 'function') {
+          tg.HapticFeedback.notificationOccurred(type);
+        }
+      } catch (err) {
+        // Игнорируем в неподдерживаемых клиентах
+      }
+    }
+
+    /**
+     * Инициализация Telegram WebApp SDK
+     */
+    function initTelegramWebApp() {
+      // Устанавливаем текст бейджа из CONFIG
+      els.brandBadgeText.textContent = CONFIG.BRAND_BADGE;
+
+      if (!tg) {
+        els.mainHeading.textContent = CONFIG.DEFAULT_HEADING;
+        return;
+      }
+
+      try {
+        // Сообщаем Telegram, что приложение готово, и раскрываем на всю высоту
+        tg.ready();
+        tg.expand();
+
+        // Настраиваем цвета шапки и фона (с защитой от старых версий SDK)
+        if (typeof tg.setHeaderColor === 'function') {
+          tg.setHeaderColor(CONFIG.TG_HEADER_COLOR);
+        }
+        if (typeof tg.setBackgroundColor === 'function') {
+          tg.setBackgroundColor(CONFIG.TG_BG_COLOR);
+        }
+
+        // Персонализация приветствия по имени пользователя из Telegram
+        const firstName = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name
+          ? String(tg.initDataUnsafe.user.first_name).trim()
+          : '';
+
+        if (firstName) {
+          els.mainHeading.textContent = `${firstName}, узнай, какой ты тревел-эксперт`;
+        } else {
+          els.mainHeading.textContent = CONFIG.DEFAULT_HEADING;
+        }
+
+        // Привязка нативной кнопки «Назад» в Telegram
+        if (tg.BackButton) {
+          tg.BackButton.hide();
+          tg.BackButton.onClick(() => {
+            if (state.currentSign) {
+              triggerHapticImpact('light');
+              showSelectScreen();
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Telegram WebApp init notice:', err);
+      }
+    }
+
+    /**
+     * Генерация деликатного звёздного фона (без визуального шума)
+     */
+    function renderStarfield() {
+      const fragment = document.createDocumentFragment();
+      const starCount = 34;
+
+      for (let i = 0; i < starCount; i++) {
+        const star = document.createElement('span');
+        const size = Math.random() > 0.78 ? 2 : 1.5;
+        const left = (Math.random() * 98 + 1).toFixed(2);
+        const top = (Math.random() * 96 + 2).toFixed(2);
+        const duration = (3.5 + Math.random() * 4.5).toFixed(2);
+        const delay = (Math.random() * 4).toFixed(2);
+
+        star.className = 'absolute rounded-full bg-slate-200 animate-twinkle';
+        star.style.width = `${size}px`;
+        star.style.height = `${size}px`;
+        star.style.left = `${left}%`;
+        star.style.top = `${top}%`;
+        star.style.setProperty('--twinkle-duration', `${duration}s`);
+        star.style.setProperty('--twinkle-delay', `${delay}s`);
+
+        fragment.appendChild(star);
+      }
+
+      els.starfield.appendChild(fragment);
+    }
+
+    /**
+     * Отрисовка сетки 3×4 из 12 знаков зодиака
+     */
+    function renderZodiacGrid() {
+      const fragment = document.createDocumentFragment();
+
+      ZODIAC_SIGNS.forEach((sign) => {
+        const style = ELEMENT_STYLES[sign.element];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('role', 'listitem');
+        btn.setAttribute('aria-label', `${sign.name}, ${sign.dates}`);
+        btn.className = [
+          'group relative flex flex-col items-center justify-center text-center',
+          'p-3 sm:p-3.5 rounded-2xl',
+          'bg-slate-900/55 backdrop-blur-md border border-white/[0.09]',
+          'shadow-lg shadow-black/20',
+          'transition-all duration-200 ease-out',
+          'active:scale-[0.95] hover:-translate-y-0.5 cursor-pointer',
+          style.tileHoverClass,
+        ].join(' ');
+
+        btn.innerHTML = `
+          <!-- Индикатор стихии в правом верхнем углу -->
+          <span class="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full ${style.dotClass} opacity-60 group-hover:opacity-100 transition-opacity"></span>
+
+          <!-- Символ знака -->
+          <span class="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center mb-2 transition-transform duration-200 group-hover:scale-105 ${style.tileIconClass}">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              ${sign.svgPath}
+            </svg>
+          </span>
+
+          <!-- Название знака -->
+          <span class="text-[13px] sm:text-sm font-semibold text-slate-100 leading-tight mb-0.5">
+            ${sign.name}
+          </span>
+
+          <!-- Короткие даты -->
+          <span class="text-[10.5px] font-medium text-slate-400 tracking-tight">
+            ${sign.dates}
+          </span>
+        `;
+
+        btn.addEventListener('click', () => {
+          triggerHapticImpact('light');
+          openSignResult(sign);
+        });
+
+        fragment.appendChild(btn);
+      });
+
+      els.zodiacGrid.innerHTML = '';
+      els.zodiacGrid.appendChild(fragment);
+    }
+
+    /**
+     * Обновление фонового свечения под выбранную стихию или возврат к базовому
+     * @param {string | null} elementKey
+     */
+    function updateAmbientGlow(elementKey) {
+      const baseTop = 'absolute -top-28 left-1/2 -translate-x-1/2 w-[380px] h-[380px] rounded-full blur-[100px] transition-colors duration-700 animate-pulse-glow';
+      const baseBottom = 'absolute -bottom-32 right-0 w-[280px] h-[280px] rounded-full blur-[100px] transition-colors duration-700';
+
+      if (!elementKey || !ELEMENT_STYLES[elementKey]) {
+        els.ambientGlowTop.className = `${baseTop} bg-sky-500/20`;
+        els.ambientGlowBottom.className = `${baseBottom} bg-amber-500/10`;
+        return;
+      }
+
+      const style = ELEMENT_STYLES[elementKey];
+      els.ambientGlowTop.className = `${baseTop} ${style.topGlowClass}`;
+      els.ambientGlowBottom.className = `${baseBottom} ${style.bottomGlowClass}`;
+    }
+
+    /**
+     * Заполнение и плавное открытие экрана результата (переход 450 мс)
+     * @param {object} sign
+     */
+    function openSignResult(sign) {
+      if (state.isTransitioning) return;
+      state.isTransitioning = true;
+      state.currentSign = sign;
+
+      const style = ELEMENT_STYLES[sign.element];
+
+      // Заполняем данные карточки результата
+      els.resultElementBadge.className = `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border backdrop-blur-md ${style.badgeClass}`;
+      els.resultElementBadge.innerHTML = `${style.iconSvg}<span>${style.label}</span>`;
+
+      els.resultDates.textContent = sign.dates;
+      els.resultCardAccentLine.className = `absolute inset-x-0 top-0 h-[2px] opacity-80 ${style.accentLineClass}`;
+
+      els.resultSymbolBox.className = `shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center border shadow-inner ${style.symbolBoxClass}`;
+      els.resultSymbolBox.innerHTML = `
+        <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          ${sign.svgPath}
+        </svg>
+      `;
+
+      els.resultTitle.textContent = sign.title;
+      els.resultDescription.textContent = sign.description;
+      els.resultGrowth.textContent = sign.growth;
+      els.resultAdvice.textContent = sign.advice;
+      els.resultCtaCaption.textContent = sign.ctaCaption;
+      els.resultCtaText.textContent = sign.ctaButton;
+
+      // Меняем мягкий оттенок фонового свечения под стихию
+      updateAmbientGlow(sign.element);
+
+      // Показываем нативную кнопку «Назад» в Telegram
+      try {
+        if (tg && tg.BackButton) {
+          tg.BackButton.show();
+        }
+      } catch (err) {}
+
+      // Анимация скрытия экрана 1 -> показа экрана 2 (всего ~450 мс)
+      els.screenSelect.classList.remove('animate-screen-in');
+      els.screenSelect.classList.add('animate-screen-out');
+
+      setTimeout(() => {
+        els.screenSelect.classList.add('hidden');
+        els.screenSelect.classList.remove('animate-screen-out');
+
+        // Прокрутка наверх перед показом карточки
+        window.scrollTo({ top: 0, behavior: 'instant' });
+
+        els.screenResult.classList.remove('hidden', 'animate-screen-out');
+        els.screenResult.classList.add('flex', 'animate-screen-in');
+
+        setTimeout(() => {
+          state.isTransitioning = false;
+        }, CONFIG.TRANSITION_IN_MS);
+      }, CONFIG.TRANSITION_OUT_MS);
+    }
+
+    /**
+     * Плавный возврат к экрану выбора знака зодиака
+     */
+    function showSelectScreen() {
+      if (state.isTransitioning) return;
+      state.isTransitioning = true;
+      state.currentSign = null;
+
+      updateAmbientGlow(null);
+
+      // Скрываем нативную кнопку «Назад» в Telegram
+      try {
+        if (tg && tg.BackButton) {
+          tg.BackButton.hide();
+        }
+      } catch (err) {}
+
+      els.screenResult.classList.remove('animate-screen-in');
+      els.screenResult.classList.add('animate-screen-out');
+
+      setTimeout(() => {
+        els.screenResult.classList.add('hidden');
+        els.screenResult.classList.remove('flex', 'animate-screen-out');
+
+        window.scrollTo({ top: 0, behavior: 'instant' });
+
+        els.screenSelect.classList.remove('hidden', 'animate-screen-out');
+        els.screenSelect.classList.add('animate-screen-in');
+
+        setTimeout(() => {
+          state.isTransitioning = false;
+        }, CONFIG.TRANSITION_IN_MS);
+      }, CONFIG.TRANSITION_OUT_MS);
+    }
+
+    /**
+     * Открытие целевой ссылки (через Telegram WebApp openLink или window.open)
+     */
+    function handleCtaClick() {
+      triggerHapticImpact('medium');
+      const targetUrl = CONFIG.CTA_URL;
+
+      try {
+        if (tg && typeof tg.openLink === 'function') {
+          tg.openLink(targetUrl);
+          return;
+        }
+      } catch (err) {
+        console.warn('Telegram openLink fallback:', err);
+      }
+
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    }
+
+    /**
+     * Показ аккуратного toast-уведомления
+     * @param {string} message
+     */
+    function showToast(message) {
+      els.toastMessage.textContent = message;
+      els.toast.classList.remove('opacity-0', 'translate-y-3');
+      els.toast.classList.add('opacity-100', 'translate-y-0');
+
+      if (state.toastTimer) {
+        clearTimeout(state.toastTimer);
+      }
+
+      state.toastTimer = setTimeout(() => {
+        els.toast.classList.remove('opacity-100', 'translate-y-0');
+        els.toast.classList.add('opacity-0', 'translate-y-3');
+      }, 2200);
+    }
+
+    /**
+     * Копирование прогноза в буфер обмена (совместимо с iFrame / Telegram WebView)
+     */
+    function handleCopyForecast() {
+      if (!state.currentSign) return;
+
+      const s = state.currentSign;
+      const formattedText = [
+        `${s.emoji} ${s.title}`,
+        '',
+        s.description,
+        '',
+        `📈 Точка роста: ${s.growth}`,
+        `✨ Совет звёзд: ${s.advice}`,
+        '',
+        `👉 ${s.ctaCaption}: ${CONFIG.CTA_URL}`,
+      ].join('\n');
+
+      let copied = false;
+
+      // Используем надёжный document.execCommand('copy') через скрытую textarea (работает в iFrame и WebView)
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = formattedText;
+        textArea.setAttribute('readonly', '');
+        textArea.style.position = 'fixed';
+        textArea.style.top = '-9999px';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        textArea.setSelectionRange(0, formattedText.length);
+        copied = document.execCommand('copy');
+        document.body.removeChild(textArea);
+      } catch (err) {
+        copied = false;
+      }
+
+      if (copied) {
+        triggerHapticNotification('success');
+        showToast('Скопировано!');
+      } else if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard
+          .writeText(formattedText)
+          .then(() => {
+            triggerHapticNotification('success');
+            showToast('Скопировано!');
+          })
+          .catch(() => {
+            showToast('Не удалось скопировать');
+          });
+      } else {
+        showToast('Не удалось скопировать');
+      }
+    }
+
+    /**
+     * Привязка обработчиков событий и запуск приложения
+     */
+    function bootstrap() {
+      initTelegramWebApp();
+      renderStarfield();
+      renderZodiacGrid();
+
+      els.btnBackTop.addEventListener('click', () => {
+        triggerHapticImpact('light');
+        showSelectScreen();
+      });
+
+      els.btnChooseAnother.addEventListener('click', () => {
+        triggerHapticImpact('light');
+        showSelectScreen();
+      });
+
+      els.btnCopyForecast.addEventListener('click', handleCopyForecast);
+      els.btnCta.addEventListener('click', handleCtaClick);
+    }
+
+    // Старт после загрузки DOM
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootstrap);
+    } else {
+      bootstrap();
+    }
+  </script>
+</body>
+</html>
